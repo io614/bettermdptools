@@ -68,7 +68,8 @@ class Planner:
                 for a in range(len(self.P[s])):
                     for prob, next_state, reward, done in self.P[s][a]:
                         Q[s][a] += prob * (reward + gamma * V[next_state] * (not done))
-            if np.max(np.abs(V - np.max(Q, axis=1))) < theta:
+            td = np.max(np.abs(V - np.max(Q, axis=1)))
+            if td < theta:
                 converged = True
             V = np.max(Q, axis=1)
             V_track[i] = V
