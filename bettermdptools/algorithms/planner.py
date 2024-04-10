@@ -23,6 +23,8 @@ for iterating to an optimal policy and reward value for a given MDP.
 import numpy as np
 import warnings
 from bettermdptools.utils.decorators import print_runtime
+import pandas as pd
+from time import time
 
 
 class Planner:
@@ -30,7 +32,7 @@ class Planner:
         self.P = P
 
     @print_runtime
-    def value_iteration(self, gamma=1.0, n_iters=1000, theta=1e-10):
+    def value_iteration(self, gamma=1.0, n_iters=1000, theta=1e-10, track_step=None):
         """
         PARAMETERS:
 
@@ -57,10 +59,13 @@ class Planner:
         pi {lambda}, input state value, output action value:
             Policy mapping states to actions.
         """
+        Q = None
         V = np.zeros(len(self.P), dtype=np.float64)
         V_track = np.zeros((n_iters, len(self.P)), dtype=np.float64)
         i = 0
+        track_dicts = []
         converged = False
+        start_time = time()
         while i < n_iters-1 and not converged:
             i += 1
             Q = np.zeros((len(self.P), len(self.P[0])), dtype=np.float64)
@@ -68,19 +73,39 @@ class Planner:
                 for a in range(len(self.P[s])):
                     for prob, next_state, reward, done in self.P[s][a]:
                         Q[s][a] += prob * (reward + gamma * V[next_state] * (not done))
-            td = np.max(np.abs(V - np.max(Q, axis=1)))
-            if td < theta:
+            delta = np.max(np.abs(V - np.max(Q, axis=1)))
+            if delta < theta:
                 converged = True
             V = np.max(Q, axis=1)
-            V_track[i] = V
+            if track_step and i % track_step == 0:
+                # Add to tracking list
+                track_dict = {
+                    "iter": i,
+                    "V_max": np.max(V),
+                    "V_mean": np.mean(V),
+                    "delta": delta,
+                    "run_time": time() - start_time
+                }
+                track_dicts.append(track_dict)
         if not converged:
             warnings.warn("Max iterations reached before convergence.  Check theta and n_iters.  ")
 
+        # Get stats_dict
+        stats_dict = {
+            "iter": i,
+            "V_max": np.max(V),
+            "V_mean": np.mean(V),
+            "delta": delta,
+            "run_time": time() - start_time
+        }
+
+        df_track = pd.DataFrame(track_dicts)
+
         pi = {s:a for s, a in enumerate(np.argmax(Q, axis=1))}
-        return V, V_track, pi
+        return Q, V, pi, df_track, stats_dict
 
     @print_runtime
-    def policy_iteration(self, gamma=1.0, n_iters=50, theta=1e-10):
+    def policy_iteration(self, gamma=1.0, n_iters=50, theta=1e-10, track_step=None):
         """
         PARAMETERS:
 
@@ -114,18 +139,48 @@ class Planner:
         V = np.zeros(len(self.P), dtype=np.float64)
         V_track = np.zeros((n_iters, len(self.P)), dtype=np.float64)
         i = 0
+        track_dicts = []
         converged = False
+        start_time = time()
         while i < n_iters-1 and not converged:
             i += 1
             old_pi = pi
-            V = self.policy_evaluation(pi, V, gamma, theta)
+            V_old = V
+            V = self.policy_evaluation(pi, V, gamma)
+            delta = np.max(np.abs(V - V_old))
             V_track[i] = V
-            pi = self.policy_improvement(V, gamma)
-            if old_pi == pi:
+            Q, pi = self.policy_improvement(V, gamma)
+            # if old_pi == pi:
+            #     converged = True
+            if delta < theta:
                 converged = True
+
+            if track_step and i % track_step == 0:
+                # Add to tracking list
+                track_dict = {
+                    "iter": i,
+                    "V_max": np.max(V),
+                    "V_mean": np.mean(V),
+                    "delta": delta,
+                    "run_time": time() - start_time
+                }
+                track_dicts.append(track_dict)
+
         if not converged:
             warnings.warn("Max iterations reached before convergence.  Check n_iters.")
-        return V, V_track, pi
+
+        # Get stats_dict
+        stats_dict = {
+            "iter": i,
+            "V_max": np.max(V),
+            "V_mean": np.mean(V),
+            "delta": delta,
+            "run_time": time() - start_time
+        }
+
+        df_track = pd.DataFrame(track_dicts)
+
+        return Q, V, pi, df_track, stats_dict
 
     def policy_evaluation(self, pi, prev_V, gamma=1.0, theta=1e-10):
         while True:
@@ -146,4 +201,4 @@ class Planner:
                     Q[s][a] += prob * (reward + gamma * V[next_state] * (not done))
 
         new_pi = {s: a for s, a in enumerate(np.argmax(Q, axis=1))}
-        return new_pi
+        return Q, new_pi

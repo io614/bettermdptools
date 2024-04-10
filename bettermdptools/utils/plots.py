@@ -97,7 +97,7 @@ class Plots:
         # Add the policy arrows
         for i in range(policy_map.shape[0]):
             for j in range(policy_map.shape[1]):
-                ax.text(j, i, policy_map[i, j], ha='center', va='center', fontsize=20)
+                ax.text(j, i, policy_map[i, j], ha='center', va='center', fontsize=15)
 
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
@@ -106,5 +106,5 @@ class Plots:
         fig.colorbar(im, ax=ax)
 
         plt.title(title)
-        plt.show() 
+        # plt.show() 
             

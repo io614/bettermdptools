@@ -24,6 +24,8 @@ import numpy as np
 from tqdm import tqdm
 from bettermdptools.utils.callbacks import MyCallbacks
 from bettermdptools.utils.decorators import print_runtime
+from time import time
+import pandas as pd
 import warnings
 
 
@@ -74,6 +76,7 @@ class RL:
 
     @print_runtime
     def q_learning(self,
+                   Q_ref,
                    nS=None,
                    nA=None,
                    convert_state_obs=lambda state: state,
@@ -84,7 +87,9 @@ class RL:
                    init_epsilon=1.0,
                    min_epsilon=0.1,
                    epsilon_decay_ratio=0.9,
-                   n_episodes=10000):
+                   n_episodes=10000,
+                   track_step = None,
+                   ):
         """
         Parameters
         ----------------------------
@@ -145,6 +150,8 @@ class RL:
         if nA is None:
             nA=self.env.action_space.n
         pi_track = []
+
+        V_ref = np.max(Q_ref, axis=1)
         Q = np.zeros((nS, nA), dtype=np.float64)
         Q_track = np.zeros((n_episodes, nS, nA), dtype=np.float64)
         # Explanation of lambda:
@@ -164,12 +171,16 @@ class RL:
                                   min_epsilon,
                                   epsilon_decay_ratio,
                                   n_episodes)
+        track_dicts = []
         for e in tqdm(range(n_episodes), leave=False):
             self.callbacks.on_episode_begin(self)
             self.callbacks.on_episode(self, episode=e)
             state, info = self.env.reset()
             done = False
+            step = 0
+            total_rewards = 0
             state = convert_state_obs(state)
+            start_time = time()
             while not done:
                 if self.render:
                     warnings.warn("Occasional render has been deprecated by openAI.  Use test_env.py to render.")
@@ -183,16 +194,39 @@ class RL:
                 td_target = reward + gamma * Q[next_state].max() * (not done)
                 td_error = td_target - Q[state][action]
                 Q[state][action] = Q[state][action] + alphas[e] * td_error
+                
+                total_rewards += reward
+                step += 1
                 state = next_state
             Q_track[e] = Q
             pi_track.append(np.argmax(Q, axis=1))
+            if track_step and e % track_step == 0:
+                V = np.max(Q, axis=1)
+                policy = np.argmax(Q, axis=1)
+                V_policy = Q_ref[np.arange(len(policy)), policy]
+                policy_loss = np.max(np.abs(V_ref-V_policy))
+                track_dict = {
+                    "episode": e,
+                    "td_error": td_error,
+                    "total_rewards": total_rewards,
+                    "n_steps": step + 1,
+                    "V_max": np.max(V),
+                    "V_mean": np.mean(V),
+                    "error_max": np.max(np.abs(V - V_ref)), 
+                    "error_RMS": np.sqrt(np.mean((V - V_ref) ** 2)),
+                    "policy_loss": np.max(V_ref - V_policy),
+                    "run_time": time() - start_time,
+                }
+                track_dicts.append(track_dict)
+
             self.render = False
             self.callbacks.on_episode_end(self)
 
         V = np.max(Q, axis=1)
 
+        df_track = pd.DataFrame(track_dicts)
         pi = {s: a for s, a in enumerate(np.argmax(Q, axis=1))}
-        return Q, V, pi, Q_track, pi_track
+        return Q, V, pi, df_track
 
     @print_runtime
     def sarsa(self,
