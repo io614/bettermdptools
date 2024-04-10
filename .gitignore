@@ -1,6 +1,7 @@
 *.py[co]
 *~
 *.jython_cache
+*.ipynb
 /.idea/
 /venv/
 /bettermdptoolbox_v2.egg-info/
