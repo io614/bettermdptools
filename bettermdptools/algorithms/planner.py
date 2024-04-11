@@ -145,14 +145,13 @@ class Planner:
         while i < n_iters-1 and not converged:
             i += 1
             old_pi = pi
-            V_old = V
             V = self.policy_evaluation(pi, V, gamma)
-            delta = np.max(np.abs(V - V_old))
+            V_old = V
             V_track[i] = V
             Q, pi = self.policy_improvement(V, gamma)
-            # if old_pi == pi:
-            #     converged = True
-            if delta < theta:
+            V_new = np.max(Q, axis=1)
+            delta = np.max(np.abs(V_new - V_old))
+            if old_pi == pi and delta < theta:
                 converged = True
 
             if track_step and i % track_step == 0:
