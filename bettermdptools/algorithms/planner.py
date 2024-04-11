@@ -77,7 +77,7 @@ class Planner:
             if delta < theta:
                 converged = True
             V = np.max(Q, axis=1)
-            if track_step and i % track_step == 0:
+            if track_step and (converged or i % track_step == 0):
                 # Add to tracking list
                 track_dict = {
                     "iter": i,
@@ -90,19 +90,10 @@ class Planner:
         if not converged:
             warnings.warn("Max iterations reached before convergence.  Check theta and n_iters.  ")
 
-        # Get stats_dict
-        stats_dict = {
-            "iter": i,
-            "V_max": np.max(V),
-            "V_mean": np.mean(V),
-            "delta": delta,
-            "run_time": time() - start_time
-        }
-
         df_track = pd.DataFrame(track_dicts)
 
         pi = {s:a for s, a in enumerate(np.argmax(Q, axis=1))}
-        return Q, V, pi, df_track, stats_dict
+        return Q, V, pi, df_track
 
     @print_runtime
     def policy_iteration(self, gamma=1.0, n_iters=50, theta=1e-10, track_step=None):
@@ -154,7 +145,7 @@ class Planner:
             if old_pi == pi and delta < theta:
                 converged = True
 
-            if track_step and i % track_step == 0:
+            if track_step and (converged or i % track_step == 0):
                 # Add to tracking list
                 track_dict = {
                     "iter": i,
@@ -168,18 +159,9 @@ class Planner:
         if not converged:
             warnings.warn("Max iterations reached before convergence.  Check n_iters.")
 
-        # Get stats_dict
-        stats_dict = {
-            "iter": i,
-            "V_max": np.max(V),
-            "V_mean": np.mean(V),
-            "delta": delta,
-            "run_time": time() - start_time
-        }
-
         df_track = pd.DataFrame(track_dicts)
 
-        return Q, V, pi, df_track, stats_dict
+        return Q, V, pi, df_track
 
     def policy_evaluation(self, pi, prev_V, gamma=1.0, theta=1e-10):
         while True:

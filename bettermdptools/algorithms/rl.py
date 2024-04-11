@@ -102,6 +102,7 @@ class RL:
                    epsilon_decay_ratio=0.9,
                    n_episodes=10000,
                    track_step = None,
+                   sim_reward_fn=None,
                    ):
         """
         Parameters
@@ -162,11 +163,11 @@ class RL:
             nS=self.env.observation_space.n
         if nA is None:
             nA=self.env.action_space.n
-        pi_track = []
+        # pi_track = []
 
         V_ref = np.max(Q_ref, axis=1)
         Q = np.zeros((nS, nA), dtype=np.float64)
-        Q_track = np.zeros((n_episodes, nS, nA), dtype=np.float64)
+        # Q_track = np.zeros((n_episodes, nS, nA), dtype=np.float64)
         alphas = RL.decay_schedule(init_alpha,
                                 min_alpha,
                                 alpha_decay_ratio,
@@ -185,6 +186,7 @@ class RL:
             total_rewards = 0
             state = convert_state_obs(state)
             start_time = time()
+
             while not done:
                 if self.render:
                     warnings.warn("Occasional render has been deprecated by openAI.  Use test_env.py to render.")
@@ -202,13 +204,15 @@ class RL:
                 total_rewards += reward
                 step += 1
                 state = next_state
-            Q_track[e] = Q
-            pi_track.append(np.argmax(Q, axis=1))
+            # Q_track[e] = Q
+            # pi_track.append(np.argmax(Q, axis=1))
             if track_step and e % track_step == 0:
                 V = np.max(Q, axis=1)
                 policy = np.argmax(Q, axis=1)
                 V_policy = Q_ref[np.arange(len(policy)), policy]
-                policy_loss = np.max(np.abs(V_ref-V_policy))
+                policy_loss_max = np.max(np.abs(V_ref-V_policy))
+                policy_loss_RMS = np.sqrt(np.mean((V_ref-V_policy)**2))
+
                 track_dict = {
                     "episode": e,
                     "td_error": td_error,
@@ -218,9 +222,15 @@ class RL:
                     "V_mean": np.mean(V),
                     "error_max": np.max(np.abs(V - V_ref)), 
                     "error_RMS": np.sqrt(np.mean((V - V_ref) ** 2)),
-                    "policy_loss": np.max(V_ref - V_policy),
+                    "policy_loss_max": policy_loss_max,
+                    "policy_loss_RMS": policy_loss_RMS,
                     "run_time": time() - start_time,
                 }
+
+                if sim_reward_fn:
+                    sim_reward = sim_reward_fn(policy)
+                    track_dict["sim_reward"] = sim_reward
+
                 track_dicts.append(track_dict)
 
             self.render = False
